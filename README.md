@@ -5,7 +5,13 @@ nbconvert templates and exporters for [Maxima Notebook](https://marketplace.visu
 ## Installation
 
 ```bash
-pip install maxima-nbconvert[plotly]
+uv pip install "maxima-nbconvert[plotly]"
+```
+
+Or with pip:
+
+```bash
+pip install "maxima-nbconvert[plotly]"
 ```
 
 The `[plotly]` extra installs Plotly and Kaleido for converting interactive charts to static SVG images. Without it, Plotly chart outputs will be skipped during export.
@@ -39,7 +45,7 @@ The [Maxima Notebook](https://marketplace.visualstudio.com/items?itemName=cmsd2.
 ```bash
 git clone https://github.com/cmsd2/maxima-nbconvert.git
 cd maxima-nbconvert
-pip install -e ".[plotly]"
+uv pip install -e ".[plotly]"
 ```
 
 ## License
