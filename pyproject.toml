@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "maxima-nbconvert"
+version = "0.1.0"
+description = "nbconvert templates and exporters for Maxima notebooks"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = [
+    "nbconvert>=7.0",
+]
+
+[project.optional-dependencies]
+plotly = ["plotly>=5.0", "kaleido"]
+
+[project.entry-points."nbconvert.exporters"]
+maxima_html = "maxima_nbconvert.exporters:MaximaHTMLExporter"
+maxima_pdf = "maxima_nbconvert.exporters:MaximaPDFExporter"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/maxima_nbconvert"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"src/maxima_nbconvert/templates" = "share/jupyter/nbconvert/templates"
