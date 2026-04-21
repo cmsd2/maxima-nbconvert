@@ -4,13 +4,16 @@
 {%- block html_head_js_requirejs -%}
 {%- endblock html_head_js_requirejs -%}
 
-{# Constrain page width and add cell spacing #}
-{% block extra_css %}
+{# Constrain page width and add cell spacing.
+   Injected after notebook_css so it overrides the inlined theme. #}
+{% block html_head_css %}
 <style>
-  .jp-Notebook { max-width: 900px; margin: 0 auto; padding: 0 1.5rem; }
-  .jp-Cell { margin-bottom: 1.5rem; }
+  :root { --jp-cell-padding: 1em; }
+  .jp-Notebook { max-width: 900px !important; margin: 0 auto !important; padding: 0 1.5rem !important; }
+  .jp-Cell { margin-bottom: 1rem !important; }
+  .jp-Cell-outputWrapper { margin-left: 10px !important; margin-top: 1em !important; }
 </style>
-{% endblock extra_css %}
+{% endblock html_head_css %}
 
 {# Replace MathJax with KaTeX #}
 {%- block html_head_js_mathjax -%}
