@@ -25,6 +25,10 @@ class MaximaHTMLExporter(HTMLExporter):
     def _init_preprocessors(self):
         super()._init_preprocessors()
         self.register_preprocessor(
+            "maxima_nbconvert.preprocessors.MaximaLatexPreprocessor",
+            enabled=True,
+        )
+        self.register_preprocessor(
             "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
             enabled=True,
         )
@@ -37,6 +41,10 @@ class MaximaPDFExporter(PDFExporter):
 
     def _init_preprocessors(self):
         super()._init_preprocessors()
+        self.register_preprocessor(
+            "maxima_nbconvert.preprocessors.MaximaLatexPreprocessor",
+            enabled=True,
+        )
         self.register_preprocessor(
             "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
             enabled=True,

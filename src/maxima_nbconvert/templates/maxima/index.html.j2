@@ -1,0 +1,42 @@
+{%- extends 'lab/index.html.j2' -%}
+
+{# Remove RequireJS — it conflicts with KaTeX's UMD module detection #}
+{%- block html_head_js_requirejs -%}
+{%- endblock html_head_js_requirejs -%}
+
+{# Replace MathJax with KaTeX #}
+{%- block html_head_js_mathjax -%}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+{%- endblock html_head_js_mathjax -%}
+
+{# Render all math after page load #}
+{% block footer_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('script[type="math/tex"]').forEach(function(el) {
+        var span = document.createElement("span");
+        try {
+            katex.render(el.textContent, span, {displayMode: true, throwOnError: false});
+        } catch(e) {
+            span.textContent = el.textContent;
+        }
+        el.parentNode.replaceChild(span, el);
+    });
+    renderMathInElement(document.body, {delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "\\(", right: "\\)", display: false},
+        {left: "\\[", right: "\\]", display: true}
+    ]});
+});
+</script>
+{% endblock footer_js %}
+
+{# Wrap LaTeX in a script tag so BeautifulSoup does not HTML-escape
+   ampersands in matrix column separators. KaTeX renders these on load. #}
+{% block data_latex scoped %}
+<div class="jp-RenderedLatex jp-OutputArea-output {{ extra_class }}" data-mime-type="text/latex">
+<script type="math/tex">{{ output.data['text/latex'] }}</script>
+</div>
+{%- endblock data_latex %}
