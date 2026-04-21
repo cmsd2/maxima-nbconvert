@@ -22,11 +22,12 @@ class MaximaHTMLExporter(HTMLExporter):
         here = os.path.dirname(os.path.abspath(__file__))
         return [os.path.join(here, "templates")] + super().extra_template_basedirs
 
-    @default("preprocessors")
-    def _preprocessors_default(self):
-        preps = list(super()._preprocessors_default())
-        preps.append("maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor")
-        return preps
+    def _init_preprocessors(self):
+        super()._init_preprocessors()
+        self.register_preprocessor(
+            "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
+            enabled=True,
+        )
 
 
 class MaximaPDFExporter(PDFExporter):
@@ -34,8 +35,9 @@ class MaximaPDFExporter(PDFExporter):
 
     export_from_notebook = "Maxima PDF"
 
-    @default("preprocessors")
-    def _preprocessors_default(self):
-        preps = list(super()._preprocessors_default())
-        preps.append("maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor")
-        return preps
+    def _init_preprocessors(self):
+        super()._init_preprocessors()
+        self.register_preprocessor(
+            "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
+            enabled=True,
+        )
