@@ -70,7 +70,7 @@ class PlotlyToSvgPreprocessor(Preprocessor):
                     height=self.height,
                 )
                 svg_str = svg_bytes.decode("utf-8")
-                data["image/svg+xml"] = svg_str.split("\n")
+                data["image/svg+xml"] = svg_str
             except Exception as exc:
                 warnings.warn(
                     f"Plotly to SVG conversion failed for cell {cell_index}: {exc}",

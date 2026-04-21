@@ -17,10 +17,10 @@ class MaximaHTMLExporter(HTMLExporter):
     def _template_name_default(self):
         return "maxima"
 
-    @property
-    def extra_template_basedirs(self):
+    @default("extra_template_basedirs")
+    def _extra_template_basedirs_default(self):
         here = os.path.dirname(os.path.abspath(__file__))
-        return [os.path.join(here, "templates")] + super().extra_template_basedirs
+        return [os.path.join(here, "templates"), os.getcwd()]
 
     def _init_preprocessors(self):
         super()._init_preprocessors()
