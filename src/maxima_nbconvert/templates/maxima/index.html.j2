@@ -4,6 +4,14 @@
 {%- block html_head_js_requirejs -%}
 {%- endblock html_head_js_requirejs -%}
 
+{# Constrain page width and add cell spacing #}
+{% block extra_css %}
+<style>
+  .jp-Notebook { max-width: 900px; margin: 0 auto; padding: 0 1.5rem; }
+  .jp-Cell { margin-bottom: 1.5rem; }
+</style>
+{% endblock extra_css %}
+
 {# Replace MathJax with KaTeX #}
 {%- block html_head_js_mathjax -%}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" crossorigin="anonymous">
@@ -27,7 +35,8 @@ document.addEventListener("DOMContentLoaded", function() {
     renderMathInElement(document.body, {delimiters: [
         {left: "$$", right: "$$", display: true},
         {left: "\\(", right: "\\)", display: false},
-        {left: "\\[", right: "\\]", display: true}
+        {left: "\\[", right: "\\]", display: true},
+        {left: "$", right: "$", display: false}
     ]});
 });
 </script>
