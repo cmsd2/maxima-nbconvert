@@ -1,0 +1,9 @@
+{%- extends 'markdown/index.md.j2' -%}
+
+{# Wrap Maxima's tex() output in $$...$$ so GitHub's MathJax renders it.
+   Maxima emits bare LaTeX (no delimiters); the standard markdown
+   template just dumps the text unchanged, which leaves the math
+   unrendered on GitHub. #}
+{% block data_latex %}
+$$ {{ output.data['text/latex'] }} $$
+{% endblock data_latex %}

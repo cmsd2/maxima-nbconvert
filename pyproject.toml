@@ -19,6 +19,7 @@ plotly = ["plotly>=5.0", "kaleido"]
 [project.entry-points."nbconvert.exporters"]
 maxima_html = "maxima_nbconvert.exporters:MaximaHTMLExporter"
 maxima_pdf = "maxima_nbconvert.exporters:MaximaPDFExporter"
+maxima_markdown = "maxima_nbconvert.exporters:MaximaMarkdownExporter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/maxima_nbconvert"]
