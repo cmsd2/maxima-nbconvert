@@ -52,3 +52,10 @@ document.addEventListener("DOMContentLoaded", function() {
 <script type="math/tex">{{ output.data['text/latex'] }}</script>
 </div>
 {%- endblock data_latex %}
+
+{# Embed PNG images as data URLs for self-contained HTML #}
+{% block data_png scoped %}
+<div class="jp-RenderedImage jp-OutputArea-output {{ extra_class }}" data-mime-type="image/png">
+<img src="data:image/png;base64,{{ output.data['image/png'] }}" />
+</div>
+{%- endblock data_png %}
