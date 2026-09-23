@@ -28,6 +28,31 @@ def _ensure_maxima_language_info(nb):
             }
 
 
+def _insert_before_extract_output(exporter, preprocessors):
+    """Enable ``preprocessors`` and splice them in front of nbconvert's
+    ExtractOutputPreprocessor (or append them if it is not registered).
+
+    Anything that adds an image representation has to run before
+    ExtractOutput, which is what writes images to disk and records their
+    file names; otherwise templates that reference those file names
+    (LaTeX's draw_figure, Markdown image links) find nothing.
+    """
+    from nbconvert.preprocessors import ExtractOutputPreprocessor
+
+    for p in preprocessors:
+        p.enabled = True
+
+    extract_idx = next(
+        (i for i, p in enumerate(exporter._preprocessors)
+         if isinstance(p, ExtractOutputPreprocessor)),
+        None,
+    )
+    if extract_idx is not None:
+        exporter._preprocessors[extract_idx:extract_idx] = preprocessors
+    else:
+        exporter._preprocessors.extend(preprocessors)
+
+
 class MaximaHTMLExporter(HTMLExporter):
     """HTML exporter with Maxima-specific template and Plotly preprocessing."""
 
@@ -61,19 +86,30 @@ class MaximaHTMLExporter(HTMLExporter):
 
 
 class MaximaPDFExporter(PDFExporter):
-    """PDF exporter with Plotly to SVG preprocessing for vector graphics."""
+    """PDF exporter using the ``maxima_latex`` template, with Plotly charts
+    converted to vector PDF figures."""
 
     export_from_notebook = "Maxima PDF"
 
+    @default("template_name")
+    def _template_name_default(self):
+        return "maxima_latex"
+
+    @default("extra_template_basedirs")
+    def _extra_template_basedirs_default(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        return [os.path.join(here, "templates"), os.getcwd()]
+
     def _init_preprocessors(self):
         super()._init_preprocessors()
-        self.register_preprocessor(
-            "maxima_nbconvert.preprocessors.MaximaLatexPreprocessor",
-            enabled=True,
+        from maxima_nbconvert.preprocessors import (
+            MaximaLatexPreprocessor,
+            PlotlyToPdfPreprocessor,
         )
-        self.register_preprocessor(
-            "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
-            enabled=True,
+
+        _insert_before_extract_output(
+            self,
+            [MaximaLatexPreprocessor(parent=self), PlotlyToPdfPreprocessor(parent=self)],
         )
 
     def from_notebook_node(
@@ -103,35 +139,21 @@ class MaximaMarkdownExporter(MarkdownExporter):
 
     def _init_preprocessors(self):
         super()._init_preprocessors()
-        # Inject our preprocessors *before* the built-in
-        # ExtractOutputPreprocessor.  PlotlyToSvg adds an image/svg+xml
-        # representation alongside application/x-maxima-plotly;
-        # ExtractOutput then writes it to <name>_files/*.svg on disk
-        # and rewrites the markdown to link to the file.  If our
-        # preprocessors ran *after* ExtractOutput, the new SVGs would
-        # get inlined as malformed `data:` URIs that GitHub doesn't
-        # render.
+        # PlotlyToSvg adds an image/svg+xml representation alongside
+        # application/x-maxima-plotly; ExtractOutput then writes it to
+        # <name>_files/*.svg on disk and rewrites the markdown to link to
+        # the file.  If our preprocessors ran *after* ExtractOutput, the
+        # new SVGs would get inlined as malformed `data:` URIs that GitHub
+        # doesn't render.
         from maxima_nbconvert.preprocessors import (
             MaximaLatexPreprocessor,
             PlotlyToSvgPreprocessor,
         )
-        from nbconvert.preprocessors import ExtractOutputPreprocessor
 
-        ours = [MaximaLatexPreprocessor(parent=self),
-                PlotlyToSvgPreprocessor(parent=self)]
-        for p in ours:
-            p.enabled = True
-
-        # Find the ExtractOutput slot (if present) and splice in front of it.
-        extract_idx = None
-        for i, p in enumerate(self._preprocessors):
-            if isinstance(p, ExtractOutputPreprocessor):
-                extract_idx = i
-                break
-        if extract_idx is not None:
-            self._preprocessors[extract_idx:extract_idx] = ours
-        else:
-            self._preprocessors.extend(ours)
+        _insert_before_extract_output(
+            self,
+            [MaximaLatexPreprocessor(parent=self), PlotlyToSvgPreprocessor(parent=self)],
+        )
 
     def from_notebook_node(
         self, nb: nbformat.NotebookNode, resources: Optional[dict[str, Any]] = None, **kw: Any

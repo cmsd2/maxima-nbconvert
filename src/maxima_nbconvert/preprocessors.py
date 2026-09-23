@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import warnings
@@ -21,6 +22,13 @@ class PlotlyToSvgPreprocessor(Preprocessor):
     enabled = Bool(True, help="Enable Plotly to SVG conversion").tag(config=True)
     width = Integer(800, help="SVG output width in pixels").tag(config=True)
     height = Integer(500, help="SVG output height in pixels").tag(config=True)
+
+    # Kaleido export format and the MIME type the result is stored under.
+    image_format = "svg"
+    target_mime = "image/svg+xml"
+
+    def _encode(self, image_bytes: bytes) -> str:
+        return image_bytes.decode("utf-8")
 
     PLOTLY_MIMES = frozenset(
         {
@@ -64,21 +72,38 @@ class PlotlyToSvgPreprocessor(Preprocessor):
                 fig_dict = plotly_json
 
             try:
-                svg_bytes = pio.to_image(
+                image_bytes = pio.to_image(
                     fig_dict,
-                    format="svg",
+                    format=self.image_format,
                     width=self.width,
                     height=self.height,
                 )
-                svg_str = svg_bytes.decode("utf-8")
-                data["image/svg+xml"] = svg_str
+                data[self.target_mime] = self._encode(image_bytes)
             except Exception as exc:
                 warnings.warn(
-                    f"Plotly to SVG conversion failed for cell {cell_index}: {exc}",
+                    f"Plotly to {self.image_format.upper()} conversion failed "
+                    f"for cell {cell_index}: {exc}",
                     stacklevel=2,
                 )
 
         return cell, resources
+
+
+class PlotlyToPdfPreprocessor(PlotlyToSvgPreprocessor):
+    """Convert Plotly JSON outputs to vector PDF for the LaTeX/PDF exporter.
+
+    LaTeX can include PDF figures directly, whereas SVG would need Inkscape
+    via nbconvert's SVG2PDFPreprocessor. The PDF is stored base64-encoded
+    under ``application/pdf`` so ExtractOutputPreprocessor writes it to disk.
+    """
+
+    enabled = Bool(True, help="Enable Plotly to PDF conversion").tag(config=True)
+
+    image_format = "pdf"
+    target_mime = "application/pdf"
+
+    def _encode(self, image_bytes: bytes) -> str:
+        return base64.b64encode(image_bytes).decode("ascii")
 
 
 def _preprocess_latex(latex: str) -> str:

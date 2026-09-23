@@ -1,0 +1,53 @@
+((=- LaTeX template for Maxima notebooks, used by the maxima_pdf exporter.
+
+   On top of nbconvert's stock latex template it:
+   - puts Maxima's tex() output into display math (Aximar stores it
+     without $$ delimiters) and shrinks wide results to the text width;
+   - defines the "none" counter that pandoc >= 3 references for tables
+     without captions;
+   - switches to DejaVu fonts under XeLaTeX/LuaLaTeX when available, so
+     Unicode in markdown and code (Greek letters, arrows, super- and
+     subscripts, geometric shapes) renders instead of dropping out;
+   - turns off automatic section numbers when the notebook metadata sets
+     "maxima_nbconvert": {"number_sections": false}, for notebooks whose
+     headings already carry their own numbers. -=))
+
+((*- extends 'latex/index.tex.j2' -*))
+
+((* block packages *))
+((( super() )))
+    % pandoc >= 3 wraps captionless tables in \def\LTcaptype{none}
+    \makeatletter
+    \@ifundefined{c@none}{\newcounter{none}}{}
+    \makeatother
+    % Unicode coverage: prefer DejaVu, found either by name (fontconfig)
+    % or by file name (TeX Live's dejavu package).
+    \ifPDFTeX\else
+        \IfFontExistsTF{DejaVu Serif}{%
+            \setmainfont{DejaVu Serif}%
+            \setsansfont{DejaVu Sans}%
+            \setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]%
+        }{%
+            \IfFontExistsTF{DejaVuSerif.ttf}{%
+                \setmainfont{DejaVuSerif}[Extension=.ttf,
+                    BoldFont=*-Bold, ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic]%
+                \setsansfont{DejaVuSans}[Extension=.ttf,
+                    BoldFont=*-Bold, ItalicFont=*-Oblique, BoldItalicFont=*-BoldOblique]%
+                \setmonofont{DejaVuSansMono}[Extension=.ttf, Scale=MatchLowercase,
+                    BoldFont=*-Bold, ItalicFont=*-Oblique, BoldItalicFont=*-BoldOblique]%
+            }{}%
+        }
+    \fi
+    ((*- if nb.metadata.get('maxima_nbconvert', {}).get('number_sections', true) is sameas false *))
+    \setcounter{secnumdepth}{0}
+    ((*- endif *))
+((* endblock packages *))
+
+((*- block data_latex -*))
+((*- set tex = output.data['text/latex'] | strip_files_prefix | trim -*))
+((*- if tex.startswith('$') or tex.startswith('\\[') or tex.startswith('\\begin{equation') or tex.startswith('\\begin{align') or tex.startswith('\\begin{gather') -*))
+((( tex )))
+((*- else *))
+\par\smallskip\noindent\adjustbox{max width=\linewidth}{$\displaystyle ((( tex )))$}\par\smallskip
+((*- endif -*))
+((*- endblock data_latex -*))
