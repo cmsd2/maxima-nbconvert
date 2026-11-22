@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import re
 import warnings
 
@@ -85,6 +86,135 @@ class PlotlyToSvgPreprocessor(Preprocessor):
                     f"for cell {cell_index}: {exc}",
                     stacklevel=2,
                 )
+
+        return cell, resources
+
+
+#: MIME type under which PlotlyToHtmlPreprocessor stores the figure JSON
+#: for the ``maxima`` HTML template.  The JSON is compact, rounded, and safe
+#: to place inside a ``<script>`` element.
+PLOTLY_HTML_MIME = "application/vnd.maxima-nbconvert.plotly+json"
+
+#: plotly.js's own height for figures whose layout sets none.
+DEFAULT_PLOTLY_HEIGHT = 450
+
+# Top-level figure keys plotly.js understands.  Others (Aximar's
+# ``_reactive`` block, which needs a live kernel) are dropped.
+_FIGURE_KEYS = ("data", "layout", "frames")
+
+
+def _round_floats(obj, digits: int):
+    """Round every float in ``obj`` to ``digits`` significant digits.
+
+    Non-finite floats become ``None``: JSON has no NaN or Infinity, and
+    plotly.js draws ``null`` as a gap.  ``digits <= 0`` keeps full precision.
+    """
+    if isinstance(obj, float):
+        if not math.isfinite(obj):
+            return None
+        if digits <= 0:
+            return obj
+        return float(f"{obj:.{digits}g}")
+    if isinstance(obj, list):
+        return [_round_floats(x, digits) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _round_floats(v, digits) for k, v in obj.items()}
+    return obj
+
+
+def _script_safe_json(obj) -> str:
+    """Serialise ``obj`` as compact JSON that cannot close a ``<script>``.
+
+    Escaping ``<``, ``>`` and ``&`` as ``\\u`` sequences keeps strings such as
+    ``"</script>"`` or ``"<!--"`` in plot titles from ending the element.
+    JSON.parse reads the escapes back as the original characters.
+    """
+    text = json.dumps(obj, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    return (
+        text.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
+    )
+
+
+def _load_figure(value):
+    if isinstance(value, list):
+        value = "".join(value)
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
+
+
+class PlotlyToHtmlPreprocessor(Preprocessor):
+    """Prepare Plotly outputs for interactive rendering in HTML export.
+
+    For each ``application/x-maxima-plotly`` (or Plotly's own MIME type)
+    output, stores the figure's data, layout and frames under
+    :data:`PLOTLY_HTML_MIME`.  The ``maxima`` template embeds that JSON and
+    draws it with plotly.js when the page loads.
+
+    With ``static_fallback`` enabled it also adds a Kaleido SVG, which the
+    page shows until plotly.js has drawn the chart (and keeps showing if
+    JavaScript is off or plotly.js fails to load).  That roughly doubles the
+    space each plot takes, so it is off by default.
+    """
+
+    enabled = Bool(True, help="Enable interactive Plotly output").tag(config=True)
+    float_precision = Integer(
+        7,
+        help=(
+            "Round floats in embedded Plotly figures to this many significant "
+            "digits, which roughly halves their size. 0 keeps full precision."
+        ),
+    ).tag(config=True)
+    static_fallback = Bool(
+        False,
+        help=(
+            "Also embed a static SVG of each Plotly chart (needs plotly and "
+            "kaleido), shown until plotly.js draws the chart."
+        ),
+    ).tag(config=True)
+
+    def preprocess_cell(self, cell, resources, cell_index):
+        if cell.get("cell_type") != "code":
+            return cell, resources
+
+        for output in cell.get("outputs", []):
+            if output.get("output_type") not in ("display_data", "execute_result"):
+                continue
+
+            data = output.get("data", {})
+            plotly_mime = next(
+                (m for m in PlotlyToSvgPreprocessor.PLOTLY_MIMES if m in data), None
+            )
+            if plotly_mime is None:
+                continue
+
+            try:
+                fig = _load_figure(data[plotly_mime])
+            except ValueError as exc:
+                warnings.warn(
+                    f"Could not parse Plotly JSON in cell {cell_index}: {exc}",
+                    stacklevel=2,
+                )
+                continue
+
+            fig = {k: fig[k] for k in _FIGURE_KEYS if fig.get(k)}
+            fig = _round_floats(fig, self.float_precision)
+            data[PLOTLY_HTML_MIME] = _script_safe_json(fig)
+            # The template reserves this height so the page does not jump
+            # when charts are drawn as they scroll into view.
+            height = fig.get("layout", {}).get("height")
+            if not isinstance(height, (int, float)) or height <= 0:
+                height = DEFAULT_PLOTLY_HEIGHT
+            output.setdefault("metadata", {})[PLOTLY_HTML_MIME] = {"height": int(height)}
+            resources["maxima_plotly_count"] = resources.get("maxima_plotly_count", 0) + 1
+
+        if self.static_fallback:
+            svg = PlotlyToSvgPreprocessor(parent=self)
+            cell, resources = svg.preprocess_cell(cell, resources, cell_index)
 
         return cell, resources
 

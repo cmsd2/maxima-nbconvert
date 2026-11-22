@@ -7,7 +7,17 @@ from typing import Any, Optional
 
 import nbformat
 from nbconvert.exporters import HTMLExporter, MarkdownExporter, PDFExporter
-from traitlets import default
+from traitlets import Bool, Unicode, default
+from traitlets.config import Config
+
+from maxima_nbconvert.preprocessors import PLOTLY_HTML_MIME
+
+#: plotly.js release loaded by exported pages.  Matches the version Aximar
+#: bundles, so charts look the same in the app and on the page.
+PLOTLY_JS_VERSION = "3.5.0"
+PLOTLY_JS_CDN_URL = (
+    f"https://cdn.jsdelivr.net/npm/plotly.js-dist-min@{PLOTLY_JS_VERSION}/plotly.min.js"
+)
 
 
 def _ensure_maxima_language_info(nb):
@@ -54,9 +64,46 @@ def _insert_before_extract_output(exporter, preprocessors):
 
 
 class MaximaHTMLExporter(HTMLExporter):
-    """HTML exporter with Maxima-specific template and Plotly preprocessing."""
+    """HTML exporter with Maxima-specific template and Plotly preprocessing.
+
+    Plotly charts become live plotly.js charts (hover, zoom, animation
+    playback).  Set ``interactive_plotly`` to False for static SVG images.
+    """
 
     export_from_notebook = "Maxima HTML"
+
+    interactive_plotly = Bool(
+        True,
+        help="Render Plotly charts with plotly.js instead of static SVG images.",
+    ).tag(config=True)
+    plotly_js_url = Unicode(
+        PLOTLY_JS_CDN_URL,
+        help="URL pages load plotly.js from when they contain Plotly charts.",
+    ).tag(config=True)
+    embed_plotly_js = Bool(
+        False,
+        help=(
+            "Inline plotly.js (about 4.8 MB, from the installed plotly package) "
+            "into each page that has Plotly charts, so the page works offline."
+        ),
+    ).tag(config=True)
+
+    @property
+    def default_config(self):
+        c = super().default_config
+        # Our preprocessor's MIME type comes first, so a chart it prepared
+        # wins over any static image stored alongside it.
+        priority = c.NbConvertBase.display_data_priority
+        c.merge(
+            Config(
+                {
+                    "NbConvertBase": {
+                        "display_data_priority": [PLOTLY_HTML_MIME, *priority],
+                    }
+                }
+            )
+        )
+        return c
 
     @default("template_name")
     def _template_name_default(self):
@@ -73,15 +120,33 @@ class MaximaHTMLExporter(HTMLExporter):
             "maxima_nbconvert.preprocessors.MaximaLatexPreprocessor",
             enabled=True,
         )
+        plotly_preprocessor = (
+            "PlotlyToHtmlPreprocessor" if self.interactive_plotly else "PlotlyToSvgPreprocessor"
+        )
         self.register_preprocessor(
-            "maxima_nbconvert.preprocessors.PlotlyToSvgPreprocessor",
+            f"maxima_nbconvert.preprocessors.{plotly_preprocessor}",
             enabled=True,
         )
+
+    def _plotly_js_resources(self) -> dict[str, Any]:
+        if not self.embed_plotly_js:
+            return {"url": self.plotly_js_url}
+        try:
+            from plotly.offline import get_plotlyjs
+        except ImportError as exc:
+            raise RuntimeError(
+                "embed_plotly_js needs the plotly package. Install with: "
+                "pip install maxima-nbconvert[plotly]"
+            ) from exc
+        return {"inline": get_plotlyjs()}
 
     def from_notebook_node(
         self, nb: nbformat.NotebookNode, resources: Optional[dict[str, Any]] = None, **kw: Any
     ) -> tuple[str, dict[str, Any]]:
         _ensure_maxima_language_info(nb)
+        if resources is None:
+            resources = {}
+        resources["maxima_plotly_js"] = self._plotly_js_resources()
         return super().from_notebook_node(nb, resources, **kw)
 
 

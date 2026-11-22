@@ -14,7 +14,7 @@ Or with pip:
 pip install "maxima-nbconvert[plotly]"
 ```
 
-The `[plotly]` extra installs Plotly and Kaleido for converting interactive charts to static SVG images. Without it, Plotly chart outputs will be skipped during export.
+HTML export draws Plotly charts with plotly.js and needs no extra packages. The `[plotly]` extra installs Plotly and Kaleido, which the PDF and Markdown exporters (and the HTML options below that produce static images or inline plotly.js) use to render charts as images. Without it, those exporters skip Plotly charts.
 
 ## Usage
 
@@ -32,9 +32,23 @@ jupyter nbconvert --to maxima_pdf notebook.macnb
 |---|---|
 | LaTeX math (`text/latex`) | Rendered via MathJax (HTML) or native LaTeX (PDF) |
 | gnuplot plots (`image/svg+xml`) | Embedded SVG |
-| Plotly charts (`application/x-maxima-plotly`) | Static SVG via Kaleido (vector PDF figure in PDF export) |
+| Plotly charts (`application/x-maxima-plotly`) | Interactive plotly.js chart (HTML), static SVG via Kaleido (Markdown), vector PDF figure (PDF) |
 | Text output (`text/plain`) | Preformatted text |
 | Errors | Styled error block |
+
+## HTML export notes
+
+Plotly charts stay interactive: hover, zoom, pan and the play button and slider of ax-plots `animate(...)` figures all work on the exported page. Each page with charts loads plotly.js once, from jsDelivr (pinned to the version Aximar bundles), and draws each chart as it scrolls into view. Floats in the embedded figures are rounded to 7 significant digits, which roughly halves their size.
+
+Options (pass as `--Class.option=value`):
+
+| Option | Default | Effect |
+|---|---|---|
+| `MaximaHTMLExporter.interactive_plotly` | `True` | `False` embeds static SVG images instead, as before |
+| `MaximaHTMLExporter.embed_plotly_js` | `False` | Inline plotly.js (about 4.8 MB) so the page works offline; needs the `[plotly]` extra |
+| `MaximaHTMLExporter.plotly_js_url` | jsDelivr URL | Where pages load plotly.js from |
+| `PlotlyToHtmlPreprocessor.float_precision` | `7` | Significant digits kept in figure data; `0` keeps full precision |
+| `PlotlyToHtmlPreprocessor.static_fallback` | `False` | Also embed a Kaleido SVG, shown until plotly.js draws the chart or when JavaScript is off |
 
 ## PDF export notes
 
@@ -61,6 +75,7 @@ The [Maxima Notebook](https://marketplace.visualstudio.com/items?itemName=cmsd2.
 git clone https://github.com/cmsd2/maxima-nbconvert.git
 cd maxima-nbconvert
 uv pip install -e ".[plotly]"
+uv run pytest
 ```
 
 ## License

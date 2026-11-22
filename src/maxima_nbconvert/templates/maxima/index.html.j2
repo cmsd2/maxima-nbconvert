@@ -12,6 +12,8 @@
   .jp-Notebook { max-width: 900px !important; margin: 0 auto !important; padding: 0 1.5rem !important; }
   .jp-Cell { margin-bottom: 1rem !important; }
   .jp-Cell-outputWrapper { margin-left: 10px !important; margin-top: 1em !important; }
+  .maxima-plotly { width: 100%; }
+  .maxima-plotly-fallback { display: block; max-width: 100%; height: auto; }
 </style>
 {% endblock html_head_css %}
 
@@ -24,6 +26,91 @@
 
 {# Render all math after page load #}
 {% block footer_js %}
+{%- if resources.maxima_plotly_count %}
+{%- if resources.maxima_plotly_js.inline %}
+<script>{{ resources.maxima_plotly_js.inline }}</script>
+{%- else %}
+<script src="{{ resources.maxima_plotly_js.url | escape_html }}" charset="utf-8"></script>
+{%- endif %}
+<script>
+/* Draw the Plotly charts that PlotlyToHtmlPreprocessor embedded as JSON.
+   Charts are drawn as they approach the viewport, so a page with many
+   plots stays responsive while it loads. */
+(function() {
+    var config = {
+        responsive: true,
+        displaylogo: false,
+        scrollZoom: false,
+        modeBarButtonsToRemove: ["sendDataToCloud", "lasso2d", "select2d"]
+    };
+
+    function hasScaleAnchor(layout) {
+        return Object.keys(layout).some(function(key) {
+            return /^[xy]axis\d*$/.test(key) && layout[key] && layout[key].scaleanchor;
+        });
+    }
+
+    function draw(el) {
+        if (el.getAttribute("data-drawn")) return;
+        el.setAttribute("data-drawn", "1");
+        if (typeof Plotly === "undefined") return;  // keep any static fallback
+        var fig = JSON.parse(el.querySelector("script.maxima-plotly-figure").textContent);
+        var layout = fig.layout || {};
+        // Honour the figure's width as a maximum but shrink to fit narrow
+        // screens.  Equal-scale plots (an axis with scaleanchor) also
+        // shrink their height, or plotly.js squeezes them into a tall
+        // strip; other plots keep their authored height.
+        if (layout.width) {
+            el.style.maxWidth = layout.width + "px";
+            var scale = Math.min(1, el.clientWidth / layout.width);
+            if (layout.height && scale > 0 && hasScaleAnchor(layout)) {
+                layout.height = Math.round(layout.height * scale);
+                el.style.minHeight = layout.height + "px";
+            }
+            delete layout.width;
+        }
+        layout.autosize = true;
+        var target = document.createElement("div");
+        el.appendChild(target);
+        Plotly.newPlot(target, fig.data || [], layout, config).then(function() {
+            var fallback = el.querySelector(".maxima-plotly-fallback");
+            if (fallback) fallback.parentNode.removeChild(fallback);
+            // Animated figures (ax-plots animate) carry frames that the
+            // slider and play button refer to by name.
+            if (fig.frames && fig.frames.length) {
+                return Plotly.addFrames(target, fig.frames);
+            }
+        }).catch(function(err) {
+            console.error("maxima-nbconvert: Plotly chart failed to draw", err);
+        });
+    }
+
+    function start() {
+        var charts = Array.prototype.slice.call(document.querySelectorAll(".maxima-plotly"));
+        window.addEventListener("beforeprint", function() { charts.forEach(draw); });
+        if (!("IntersectionObserver" in window)) {
+            charts.forEach(draw);
+            return;
+        }
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    observer.unobserve(entry.target);
+                    draw(entry.target);
+                }
+            });
+        }, {rootMargin: "400px 0px"});
+        charts.forEach(function(el) { observer.observe(el); });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+    } else {
+        start();
+    }
+})();
+</script>
+{%- endif %}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('script[type="math/tex"]').forEach(function(el) {
@@ -59,3 +146,24 @@ document.addEventListener("DOMContentLoaded", function() {
 <img src="data:image/png;base64,{{ output.data['image/png'] }}" />
 </div>
 {%- endblock data_png %}
+
+{# Interactive Plotly charts.  PlotlyToHtmlPreprocessor stores the figure
+   as script-safe JSON; the footer script draws it with plotly.js.  A static
+   SVG, when the preprocessor added one, shows until the chart is drawn. #}
+{% block data_other scoped %}
+{#- data_other is not declared scoped upstream, so the loop variable
+    `type` is not visible here.  Our MIME type heads the display priority,
+    so its presence means it is the type being rendered. -#}
+{%- set plotly_mime = 'application/vnd.maxima-nbconvert.plotly+json' -%}
+{%- if plotly_mime in output.data -%}
+<div class="jp-OutputArea-output {{ extra_class }}" data-mime-type="application/x-maxima-plotly">
+{%- set plotly_meta = output.metadata.get(plotly_mime, {}) %}
+<div class="maxima-plotly" style="min-height: {{ plotly_meta.get('height', 450) }}px">
+{%- if 'image/svg+xml' in output.data %}
+<img class="maxima-plotly-fallback" alt="" src="data:image/svg+xml;base64,{{ output.data['image/svg+xml'] | text_base64 | escape_html }}">
+{%- endif %}
+<script type="application/json" class="maxima-plotly-figure">{{ output.data[plotly_mime] }}</script>
+</div>
+</div>
+{%- endif -%}
+{%- endblock data_other %}
