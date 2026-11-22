@@ -16,6 +16,12 @@ dependencies = [
 [project.optional-dependencies]
 plotly = ["plotly>=5.0", "kaleido"]
 
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [project.entry-points."nbconvert.exporters"]
 maxima_html = "maxima_nbconvert.exporters:MaximaHTMLExporter"
 maxima_pdf = "maxima_nbconvert.exporters:MaximaPDFExporter"
